@@ -522,7 +522,7 @@ class VoiceClient(VoiceProtocol):
     # audio related
 
     def _get_voice_packet(self, data, speaking=True):
-        header = bytearray(18)
+        header = bytearray(20)
 
         # Formulate rtp header
         header[0] = 0x90
@@ -532,9 +532,11 @@ class VoiceClient(VoiceProtocol):
         struct.pack_into('>I', header, 8, self.ssrc)
         header[12] = 0xbe
         header[13] = 0xde
-        struct.pack_into('>H', header, 14, 0)
+        struct.pack_into('>H', header, 14, 1)
         header[16] = (0x09 << 4) | 0x00
         header[17] = speaking and 0x20 or 0x00
+        header[18] = 0
+        header[19] = 0
 
         encrypt_packet = getattr(self, '_encrypt_' + self.mode)
         return encrypt_packet(header, data)
@@ -542,7 +544,7 @@ class VoiceClient(VoiceProtocol):
     def _encrypt_xsalsa20_poly1305(self, header: bytes, data) -> bytes:
         box = nacl.secret.SecretBox(bytes(self.secret_key))
         nonce = bytearray(24)
-        nonce[:12] = header
+        nonce[:20] = header
 
         return header + box.encrypt(bytes(data), bytes(nonce)).ciphertext
 
