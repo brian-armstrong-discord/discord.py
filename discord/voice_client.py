@@ -532,7 +532,7 @@ class VoiceClient(VoiceProtocol):
         struct.pack_into('>I', header, 8, self.ssrc)
         header[12] = 0xbe
         header[13] = 0xde
-        struct.pack_into('>H', header, 14, 1)
+        struct.pack_into('>H', header, 14, 0)
         header[16] = (0x09 << 4) | 0x00
         header[17] = speaking and 0x20 or 0x00
 
