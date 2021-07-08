@@ -546,13 +546,13 @@ class VoiceClient(VoiceProtocol):
         nonce = bytearray(24)
         nonce[:12] = header[:12]
 
-        return header[:12] + box.encrypt(bytes(header[12:]), bytes(data), bytes(nonce)).ciphertext
+        return header[:12] + box.encrypt(bytes(header[12:]) + bytes(data), bytes(nonce)).ciphertext
 
     def _encrypt_xsalsa20_poly1305_suffix(self, header: bytes, data) -> bytes:
         box = nacl.secret.SecretBox(bytes(self.secret_key))
         nonce = nacl.utils.random(nacl.secret.SecretBox.NONCE_SIZE)
 
-        return header[:12] + box.encrypt(bytes(header[12:]), bytes(data), nonce).ciphertext + nonce
+        return header[:12] + box.encrypt(bytes(header[12:]) + bytes(data), nonce).ciphertext + nonce
 
     def _encrypt_xsalsa20_poly1305_lite(self, header: bytes, data) -> bytes:
         box = nacl.secret.SecretBox(bytes(self.secret_key))
@@ -561,7 +561,7 @@ class VoiceClient(VoiceProtocol):
         nonce[:4] = struct.pack('>I', self._lite_nonce)
         self.checked_add('_lite_nonce', 1, 4294967295)
 
-        return header[:12] + box.encrypt(bytes(header[12:]), bytes(data), bytes(nonce)).ciphertext + nonce[:4]
+        return header[:12] + box.encrypt(bytes(header[12:]) + bytes(data), bytes(nonce)).ciphertext + nonce[:4]
 
     def play(self, source: AudioSource, *, after: Callable[[Optional[Exception]], Any]=None) -> None:
         """Plays an :class:`AudioSource`.
