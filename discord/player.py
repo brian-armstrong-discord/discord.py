@@ -599,6 +599,9 @@ class PCMVolumeTransformer(AudioSource, Generic[AT]):
         ret = self.original.read()
         return audioop.mul(ret, 2, min(self._volume, 2.0))
 
+    def is_speaking(self) -> bool:
+        return self.original.is_speaking()
+
 class AudioPlayer(threading.Thread):
     DELAY: float = OpusEncoder.FRAME_LENGTH / 1000.0
 
