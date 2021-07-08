@@ -658,7 +658,7 @@ class AudioPlayer(threading.Thread):
                 self._speak(next_speaking)
                 speaking = next_speaking
 
-            play_audio(data, encode=not self.source.is_opus())
+            play_audio(data, encode=not self.source.is_opus(), speaking=speaking)
             next_time = self._start + self.DELAY * self.loops
             delay = max(0, self.DELAY + (next_time - time.perf_counter()))
             time.sleep(delay)

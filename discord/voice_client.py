@@ -521,15 +521,20 @@ class VoiceClient(VoiceProtocol):
 
     # audio related
 
-    def _get_voice_packet(self, data):
-        header = bytearray(12)
+    def _get_voice_packet(self, data, speaking=True):
+        header = bytearray(18)
 
         # Formulate rtp header
-        header[0] = 0x80
+        header[0] = 0x90
         header[1] = 0x78
         struct.pack_into('>H', header, 2, self.sequence)
         struct.pack_into('>I', header, 4, self.timestamp)
         struct.pack_into('>I', header, 8, self.ssrc)
+        header[12] = 0xbe
+        header[13] = 0xde
+        struct.pack_into('>H', header, 14, 1)
+        header[16] = (0x09 << 4) | 0x00
+        header[17] = speaking and 0x20 or 0x00
 
         encrypt_packet = getattr(self, '_encrypt_' + self.mode)
         return encrypt_packet(header, data)
@@ -642,7 +647,7 @@ class VoiceClient(VoiceProtocol):
 
         self._player._set_source(value)
 
-    def send_audio_packet(self, data: bytes, *, encode: bool = True) -> None:
+    def send_audio_packet(self, data: bytes, *, encode: bool = True, speaking: bool = True) -> None:
         """Sends an audio packet composed of the data.
 
         You must be connected to play audio.
@@ -653,6 +658,8 @@ class VoiceClient(VoiceProtocol):
             The :term:`py:bytes-like object` denoting PCM or Opus voice data.
         encode: :class:`bool`
             Indicates if ``data`` should be encoded into Opus.
+        speaking: :class:`bool`
+            Indicates if speaking status should be set.
 
         Raises
         -------
@@ -667,7 +674,7 @@ class VoiceClient(VoiceProtocol):
             encoded_data = self.encoder.encode(data, self.encoder.SAMPLES_PER_FRAME)
         else:
             encoded_data = data
-        packet = self._get_voice_packet(encoded_data)
+        packet = self._get_voice_packet(encoded_data, speaking=speaking)
         try:
             self.socket.sendto(packet, (self.endpoint_ip, self.voice_port))
         except BlockingIOError:
