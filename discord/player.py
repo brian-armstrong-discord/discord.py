@@ -99,6 +99,21 @@ class AudioSource:
         """
         raise NotImplementedError
 
+    def is_speaking(self) -> bool:
+        """Returns whether the source should indicate speaking.
+
+        Subclasses may implement this.
+
+        This will be called after read() in order to determine whether that
+        read block contained "speaking" audio.
+
+        Returns
+        --------
+        :class:`bool`
+            ``True`` if the last call to read contained speaking audio.
+        """
+        return True
+
     def is_opus(self) -> bool:
         """Checks if the audio source is already encoded in Opus."""
         return False
@@ -584,6 +599,9 @@ class PCMVolumeTransformer(AudioSource, Generic[AT]):
         ret = self.original.read()
         return audioop.mul(ret, 2, min(self._volume, 2.0))
 
+    def is_speaking(self) -> bool:
+        return self.original.is_speaking()
+
 class AudioPlayer(threading.Thread):
     DELAY: float = OpusEncoder.FRAME_LENGTH / 1000.0
 
@@ -610,7 +628,8 @@ class AudioPlayer(threading.Thread):
 
         # getattr lookup speed ups
         play_audio = self.client.send_audio_packet
-        self._speak(True)
+        speaking = True
+        self._speak(speaking)
 
         while not self._end.is_set():
             # are we paused?
@@ -634,7 +653,12 @@ class AudioPlayer(threading.Thread):
                 self.stop()
                 break
 
-            play_audio(data, encode=not self.source.is_opus())
+            next_speaking = self.source.is_speaking()
+            if next_speaking != speaking:
+                self._speak(next_speaking)
+                speaking = next_speaking
+
+            play_audio(data, encode=not self.source.is_opus(), speaking=speaking)
             next_time = self._start + self.DELAY * self.loops
             delay = max(0, self.DELAY + (next_time - time.perf_counter()))
             time.sleep(delay)

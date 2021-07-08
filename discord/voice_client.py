@@ -521,15 +521,22 @@ class VoiceClient(VoiceProtocol):
 
     # audio related
 
-    def _get_voice_packet(self, data):
-        header = bytearray(12)
+    def _get_voice_packet(self, data, speaking=True):
+        header = bytearray(20)
 
         # Formulate rtp header
-        header[0] = 0x80
+        header[0] = 0x90
         header[1] = 0x78
         struct.pack_into('>H', header, 2, self.sequence)
         struct.pack_into('>I', header, 4, self.timestamp)
         struct.pack_into('>I', header, 8, self.ssrc)
+        header[12] = 0xbe
+        header[13] = 0xde
+        struct.pack_into('>H', header, 14, 1)
+        header[16] = (0x09 << 4) | 0x00
+        header[17] = speaking and 0x82 or 0x80
+        header[18] = 0
+        header[19] = 0
 
         encrypt_packet = getattr(self, '_encrypt_' + self.mode)
         return encrypt_packet(header, data)
@@ -537,15 +544,15 @@ class VoiceClient(VoiceProtocol):
     def _encrypt_xsalsa20_poly1305(self, header: bytes, data) -> bytes:
         box = nacl.secret.SecretBox(bytes(self.secret_key))
         nonce = bytearray(24)
-        nonce[:12] = header
+        nonce[:12] = header[:12]
 
-        return header + box.encrypt(bytes(data), bytes(nonce)).ciphertext
+        return header[:12] + box.encrypt(bytes(header[12:]) + bytes(data), bytes(nonce)).ciphertext
 
     def _encrypt_xsalsa20_poly1305_suffix(self, header: bytes, data) -> bytes:
         box = nacl.secret.SecretBox(bytes(self.secret_key))
         nonce = nacl.utils.random(nacl.secret.SecretBox.NONCE_SIZE)
 
-        return header + box.encrypt(bytes(data), nonce).ciphertext + nonce
+        return header[:12] + box.encrypt(bytes(header[12:]) + bytes(data), nonce).ciphertext + nonce
 
     def _encrypt_xsalsa20_poly1305_lite(self, header: bytes, data) -> bytes:
         box = nacl.secret.SecretBox(bytes(self.secret_key))
@@ -554,7 +561,7 @@ class VoiceClient(VoiceProtocol):
         nonce[:4] = struct.pack('>I', self._lite_nonce)
         self.checked_add('_lite_nonce', 1, 4294967295)
 
-        return header + box.encrypt(bytes(data), bytes(nonce)).ciphertext + nonce[:4]
+        return header[:12] + box.encrypt(bytes(header[12:]) + bytes(data), bytes(nonce)).ciphertext + nonce[:4]
 
     def play(self, source: AudioSource, *, after: Callable[[Optional[Exception]], Any]=None) -> None:
         """Plays an :class:`AudioSource`.
@@ -642,7 +649,7 @@ class VoiceClient(VoiceProtocol):
 
         self._player._set_source(value)
 
-    def send_audio_packet(self, data: bytes, *, encode: bool = True) -> None:
+    def send_audio_packet(self, data: bytes, *, encode: bool = True, speaking: bool = True) -> None:
         """Sends an audio packet composed of the data.
 
         You must be connected to play audio.
@@ -653,6 +660,8 @@ class VoiceClient(VoiceProtocol):
             The :term:`py:bytes-like object` denoting PCM or Opus voice data.
         encode: :class:`bool`
             Indicates if ``data`` should be encoded into Opus.
+        speaking: :class:`bool`
+            Indicates if speaking status should be set.
 
         Raises
         -------
@@ -667,7 +676,7 @@ class VoiceClient(VoiceProtocol):
             encoded_data = self.encoder.encode(data, self.encoder.SAMPLES_PER_FRAME)
         else:
             encoded_data = data
-        packet = self._get_voice_packet(encoded_data)
+        packet = self._get_voice_packet(encoded_data, speaking=speaking)
         try:
             self.socket.sendto(packet, (self.endpoint_ip, self.voice_port))
         except BlockingIOError:
