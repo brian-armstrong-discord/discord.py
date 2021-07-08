@@ -99,6 +99,21 @@ class AudioSource:
         """
         raise NotImplementedError
 
+    def is_speaking(self) -> bool:
+        """Returns whether the source should indicate speaking.
+
+        Subclasses may implement this.
+
+        This will be called after read() in order to determine whether that
+        read block contained "speaking" audio.
+
+        Returns
+        --------
+        :class:`bool`
+            ``True`` if the last call to read contained speaking audio.
+        """
+        return True
+
     def is_opus(self) -> bool:
         """Checks if the audio source is already encoded in Opus."""
         return False
@@ -610,7 +625,8 @@ class AudioPlayer(threading.Thread):
 
         # getattr lookup speed ups
         play_audio = self.client.send_audio_packet
-        self._speak(True)
+        speaking = True
+        self._speak(speaking)
 
         while not self._end.is_set():
             # are we paused?
@@ -633,6 +649,11 @@ class AudioPlayer(threading.Thread):
             if not data:
                 self.stop()
                 break
+
+            next_speaking = self.source.is_speaking()
+            if next_speaking != speaking:
+                self._speak(next_speaking)
+                speaking = next_speaking
 
             play_audio(data, encode=not self.source.is_opus())
             next_time = self._start + self.DELAY * self.loops
