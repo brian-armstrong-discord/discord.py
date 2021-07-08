@@ -544,7 +544,7 @@ class VoiceClient(VoiceProtocol):
     def _encrypt_xsalsa20_poly1305(self, header: bytes, data) -> bytes:
         box = nacl.secret.SecretBox(bytes(self.secret_key))
         nonce = bytearray(24)
-        nonce[:20] = header
+        nonce[:12] = header[:12]
 
         return header + box.encrypt(bytes(data), bytes(nonce)).ciphertext
 
